@@ -12,8 +12,18 @@
 
 #define WM_TRAYSHOW WM_USER + 1
 #define APP_EXIT 101
+#define APP_STARTUP 102
+#define APP_REFRESH 103
 
 global bool app_running;
+global char dir1_path[512];
+global char dir2_path[512];
+global linked_list dir1_list = {};
+global linked_list dir2_list = {};
+global node *safe;
+global node *unsafe;
+
+global bool startup_state;
 
 void setwallpaper(char *path)
 {
@@ -49,24 +59,37 @@ void hidetrayicon(HWND window)
 
 void showpopupontray(HWND window)
 {
-	POINT cursor;
 	HMENU menu;
+	POINT cursor;
+
 	GetCursorPos(&cursor);
 	menu = CreatePopupMenu();
 
-	AppendMenu(menu, MF_STRING, APP_EXIT, "&exit");
+	DWORD is_set = MF_CHECKED;
+
+	if(startup_state) is_set = MF_CHECKED;
+	else is_set = MF_UNCHECKED;
+
+	AppendMenu(menu, MF_STRING | is_set | MF_GRAYED, APP_STARTUP, "&Auto Start");
+	AppendMenu(menu, MF_STRING, APP_REFRESH, "&Refresh");
+	AppendMenu(menu, MF_SEPARATOR, 0, 0);
+	AppendMenu(menu, MF_STRING, APP_EXIT, "&Exit");
+
 	SetForegroundWindow(window);
 	TrackPopupMenu(menu, TPM_LEFTALIGN, cursor.x, cursor.y, 0, window, 0);
 	DestroyMenu(menu);
 }
 
-void get_exe_directory(char *buffer, int size)
+void get_exe_directory(char *buffer, int size, int flag=0)
 {
 	HMODULE app = GetModuleHandle(0);
 	GetModuleFileName(app, buffer, size);
 
-	char *rm_slash = strrchr(buffer, '\\');
-	*rm_slash = 0;
+	if(flag==0)
+	{
+		char *rm_slash = strrchr(buffer, '\\');
+		*rm_slash = 0;
+	}
 }
 
 void getappdirs(char *res, char *root, char *dir)
@@ -100,6 +123,56 @@ void getfiles(linked_list *list, char *path)
 	} while(FindNextFile(find, &fd));
 }
 
+void refresh()
+{
+	node *n = dir1_list;
+
+	while(n)
+	{
+		node *tmp = n;
+		n=n->next;
+		list_delete(&dir1_list, tmp);
+	}
+
+	n = dir2_list;
+	while(n)
+	{
+		node *tmp = n;
+		n=n->next;
+		list_delete(&dir2_list, tmp);
+	}
+
+	getfiles(&dir1_list, dir1_path);
+	getfiles(&dir2_list, dir2_path);
+
+	safe = dir1_list;
+	unsafe = dir2_list;
+}
+
+void enablestartup()
+{
+	char exe[512];
+	get_exe_directory(exe, sizeof(exe), 512);
+	HKEY key = 0;
+
+	//TODO
+	/*
+	SECURITY_ATTRIBUTES sd = {};
+
+	InitializeSecurityDescriptor(&sd, SECURITY_DESCRIPTOR_REVISION);
+
+	RegCreateKeyEx(HKEY_CURRENT_USER,
+				   "\\Software\\Microsoft\\Windows\\CurrentVersion\\Run",
+				   0,
+				   0,
+				   REG_OPTION_NON_VOLATILE,
+				   KEY_READ | KEY_WRITE,
+				   &sd, &key, 0);
+
+	RegSetValueEx(key, "gumd_nlife", 0, REG_SZ, (BYTE*)exe, 2*(strlen(exe)+1));
+	*/
+}
+
 LRESULT CALLBACK
 windowprocedure(HWND window, UINT message, WPARAM wparam, LPARAM lparam)
 {
@@ -131,7 +204,18 @@ windowprocedure(HWND window, UINT message, WPARAM wparam, LPARAM lparam)
 					app_running = false;
 					PostQuitMessage(0);
 					hidetrayicon(window);
-				}
+				} break;
+
+				case APP_STARTUP:
+				{
+					enablestartup();
+					startup_state = !startup_state;
+				} break;
+
+				case APP_REFRESH:
+				{
+					refresh();
+				} break;
 			}
 		} break;
 
@@ -150,25 +234,16 @@ WinMain(HINSTANCE instance,
 		LPSTR cmdline,
 		int cmdshow)
 {
-	char dir1_path[512];
-	char dir2_path[512];
 	char exe_directory[512];
 	char *dir1 = "\\safe";
 	char *dir2 = "\\unsafe";
-
-	linked_list dir1_list = {};
-	linked_list dir2_list = {};
 
 	get_exe_directory(exe_directory, 512);
 
 	getappdirs(dir1_path, exe_directory, dir1);
 	getappdirs(dir2_path, exe_directory, dir2);
 
-	getfiles(&dir1_list, dir1_path);
-	getfiles(&dir2_list, dir2_path);
-
-	node *safe = dir1_list;
-	node *unsafe = dir2_list;
+	refresh();
 
 	char *path = 0;
 

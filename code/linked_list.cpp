@@ -66,7 +66,7 @@ void list_delete(node **list, node *node)
 {
 	if(!node->prev && !node->next)
 	{
-		//empty case
+		*list = 0;
 	}
 	else if(!node->prev)
 	{
