@@ -38,11 +38,11 @@ void showtrayicon(HWND window)
 	nid.hWnd = window;
 	nid.uID = 101;
 	nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_INFO | NIF_TIP;
-	nid.hIcon = LoadIcon(0, IDI_APPLICATION);
+	nid.hIcon = LoadIcon(GetModuleHandle(0), MAKEINTRESOURCE(1));
 	nid.uCallbackMessage = WM_TRAYSHOW;
 
-	_tcscpy(nid.szTip, _T("gumd | nlife"));
-	_tcscpy(nid.szInfo, _T("gumd - the wallpaper master"));
+	_tcscpy(nid.szTip, _T("dood | nlife"));
+	_tcscpy(nid.szInfo, _T("dood - the wallpaper master"));
 
 	nid.dwInfoFlags = NIIF_INFO;
 	Shell_NotifyIcon(NIM_ADD, &nid);
@@ -70,7 +70,7 @@ void showpopupontray(HWND window)
 	if(startup_state) is_set = MF_CHECKED;
 	else is_set = MF_UNCHECKED;
 
-	AppendMenu(menu, MF_STRING | is_set | MF_GRAYED, APP_STARTUP, "&Auto Start");
+	AppendMenu(menu, MF_STRING | is_set, APP_STARTUP, "&Auto Start");
 	AppendMenu(menu, MF_STRING, APP_REFRESH, "&Refresh");
 	AppendMenu(menu, MF_SEPARATOR, 0, 0);
 	AppendMenu(menu, MF_STRING, APP_EXIT, "&Exit");
@@ -152,25 +152,42 @@ void refresh()
 void enablestartup()
 {
 	char exe[512];
-	get_exe_directory(exe, sizeof(exe), 512);
+	get_exe_directory(exe, sizeof(exe), 1);
 	HKEY key = 0;
 
-	//TODO
-	/*
-	SECURITY_ATTRIBUTES sd = {};
+	RegOpenKeyEx(HKEY_CURRENT_USER, "Software\\Microsoft\\Windows\\CurrentVersion\\Run", 0, KEY_SET_VALUE, &key);
+	RegSetValueEx(key, "dood_nlife", 0, REG_SZ, (BYTE*)exe, 2*(strlen(exe)+1));
+	RegCloseKey(key);
+}
 
-	InitializeSecurityDescriptor(&sd, SECURITY_DESCRIPTOR_REVISION);
+void disablestartup()
+{
+	HKEY key = 0;
+	RegOpenKeyEx(HKEY_CURRENT_USER, "Software\\Microsoft\\Windows\\CurrentVersion\\Run", 0, KEY_SET_VALUE, &key);
+	RegDeleteValue(key, "dood_nlife");
+	RegCloseKey(key);
+}
 
-	RegCreateKeyEx(HKEY_CURRENT_USER,
-				   "\\Software\\Microsoft\\Windows\\CurrentVersion\\Run",
-				   0,
-				   0,
-				   REG_OPTION_NON_VOLATILE,
-				   KEY_READ | KEY_WRITE,
-				   &sd, &key, 0);
+bool startupstatus()
+{
+	HKEY key = 0;
+	RegOpenKeyEx(HKEY_CURRENT_USER, "Software\\Microsoft\\Windows\\CurrentVersion\\Run", 0, KEY_QUERY_VALUE, &key);
 
-	RegSetValueEx(key, "gumd_nlife", 0, REG_SZ, (BYTE*)exe, 2*(strlen(exe)+1));
-	*/
+	DWORD size = 513*2;
+
+	char exe[512];
+	char actual_path[512];
+	LONG err = RegGetValue(key, 0, "dood_nlife", RRF_RT_ANY, 0, exe, &size);
+
+	get_exe_directory(actual_path, sizeof(actual_path), 1);
+
+	bool same_path = (strcmp(actual_path, exe) == 0);
+
+	if(err != ERROR_SUCCESS || (!same_path))
+	{
+		return false;
+	}
+	return true;
 }
 
 LRESULT CALLBACK
@@ -208,7 +225,15 @@ windowprocedure(HWND window, UINT message, WPARAM wparam, LPARAM lparam)
 
 				case APP_STARTUP:
 				{
-					enablestartup();
+					if(!startup_state)
+					{
+						enablestartup();
+					}
+					else
+					{
+						disablestartup();
+					}
+
 					startup_state = !startup_state;
 				} break;
 
@@ -237,15 +262,14 @@ WinMain(HINSTANCE instance,
 	char exe_directory[512];
 	char *dir1 = "\\safe";
 	char *dir2 = "\\unsafe";
+	char *path = 0;
+
+	startup_state = startupstatus();
 
 	get_exe_directory(exe_directory, 512);
-
 	getappdirs(dir1_path, exe_directory, dir1);
 	getappdirs(dir2_path, exe_directory, dir2);
-
 	refresh();
-
-	char *path = 0;
 
 	WNDCLASSEX window_class = {};
 
@@ -253,12 +277,12 @@ WinMain(HINSTANCE instance,
 	window_class.lpfnWndProc = windowprocedure;
 	window_class.hInstance = instance;
 	window_class.hCursor = LoadCursor(0, IDC_ARROW);
-	window_class.lpszClassName = "nlife_gumd";
+	window_class.lpszClassName = "nlife_dood";
 
 	RegisterClassEx(&window_class);
 
 	HWND window = CreateWindowEx(0, window_class.lpszClassName,
-								 "nlife_gumd", WS_POPUP,
+								 "nlife_dood", WS_POPUP,
 								 CW_USEDEFAULT, CW_USEDEFAULT,
 								 CW_USEDEFAULT, CW_USEDEFAULT,
 								 0, 0, instance, 0);
